@@ -2,6 +2,7 @@ package com.echo.voicenotes.transcription
 
 import android.app.Notification
 import android.content.Context
+import android.content.pm.ServiceInfo
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
@@ -38,8 +39,11 @@ class TranscriptionWorker(context: Context, params: WorkerParameters) : Coroutin
             Result.retry()
         }
     }
-    private fun foregroundInfo(text: String): ForegroundInfo = ForegroundInfo(1002,
+    private fun foregroundInfo(text: String): ForegroundInfo = ForegroundInfo(
+        1002,
         NotificationCompat.Builder(applicationContext, NotificationChannels.TRANSCRIPTION)
-            .setSmallIcon(android.R.drawable.ic_popup_sync).setContentTitle(text).setOngoing(true).build())
+            .setSmallIcon(android.R.drawable.ic_popup_sync).setContentTitle(text).setOngoing(true).build(),
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+    )
     companion object { const val NOTE_ID = "note_id" }
 }
