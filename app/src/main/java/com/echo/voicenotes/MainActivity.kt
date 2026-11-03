@@ -337,6 +337,7 @@ private fun NoteList(notes: List<Note>, onOpenNote: (Note) -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun NoteDetailScreen(note: Note, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
     var player by remember(note.id) { mutableStateOf<MediaPlayer?>(null) }
