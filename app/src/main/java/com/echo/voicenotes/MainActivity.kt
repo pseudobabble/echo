@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,8 +52,10 @@ class MainActivity : ComponentActivity() {
     private fun chooseDriveFolder() = driveFolderPicker.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION))
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun EchoApp(onRecord: () -> Unit, onConnectDrive: () -> Unit) {
-    val repo = remember { NoteRepository.get(androidx.compose.ui.platform.LocalContext.current) }
+    val context = LocalContext.current
+    val repo = remember(context) { NoteRepository.get(context) }
     val notes by repo.notes.observeAll().collectAsStateWithLifecycle(emptyList())
     MaterialTheme {
         Scaffold(topBar = { TopAppBar(title = { Text("Echo") }, actions = { TextButton(onClick = onConnectDrive) { Text("Drive") } }) }, floatingActionButton = { FloatingActionButton(onClick = onRecord) { Text("Record") } }) { padding ->
