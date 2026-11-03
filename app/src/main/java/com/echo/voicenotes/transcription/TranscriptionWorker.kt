@@ -19,10 +19,14 @@ class TranscriptionWorker(context: Context, params: WorkerParameters) : Coroutin
         val id = inputData.getString(NOTE_ID) ?: return Result.failure()
         val repo = NoteRepository.get(applicationContext)
         val note = repo.notes.byId(id) ?: return Result.failure()
+        if (WhisperModelManager(applicationContext).installedModel() == null) {
+            repo.notes.transcriptionState(id, TranscriptionState.QUEUED, "Waiting for the transcription model to download")
+            return Result.retry()
+        }
         NotificationChannels.ensure(applicationContext); setForeground(foregroundInfo("Transcribing voice note"))
         repo.notes.transcriptionState(id, TranscriptionState.RUNNING)
         return try {
-            val transcript = withContext(Dispatchers.Default) { NativeWhisperEngine.create().transcribe(File(note.audioPath)) }
+            val transcript = withContext(Dispatchers.Default) { NativeWhisperEngine.create(applicationContext).transcribe(File(note.audioPath)) }
             repo.notes.completeTranscript(id, transcript)
             DriveSyncScheduler.enqueue(applicationContext, id)
             Result.success()

@@ -11,8 +11,15 @@ android {
         applicationId = "com.echo.voicenotes"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+        externalNativeBuild {
+            cmake { cppFlags += "-std=c++17" }
+        }
+    }
+    ndkVersion = "26.3.11579264"
+    externalNativeBuild {
+        cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" }
     }
     buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }

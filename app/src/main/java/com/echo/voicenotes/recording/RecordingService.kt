@@ -38,6 +38,7 @@ class RecordingService : Service() {
         recorder = MediaRecorder().apply {
             setAudioSource(MediaRecorder.AudioSource.MIC); setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setAudioEncoder(MediaRecorder.AudioEncoder.AAC); setAudioEncodingBitRate(64_000); setAudioSamplingRate(16_000)
+            setAudioChannels(1)
             setOutputFile(file.absolutePath); prepare(); start()
         }
     }

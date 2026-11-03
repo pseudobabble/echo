@@ -23,6 +23,7 @@ import com.echo.voicenotes.recording.RecordingService
 import com.echo.voicenotes.recording.RecordShortcutPublisher
 import com.echo.voicenotes.drive.DriveFolder
 import com.echo.voicenotes.drive.DriveSyncScheduler
+import com.echo.voicenotes.transcription.WhisperModelManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -42,7 +43,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (android.os.Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         else RecordShortcutPublisher.publish(this)
-        setContent { EchoApp(::requestRecording, ::chooseDriveFolder) }
+        setContent { EchoApp(::requestRecording, ::chooseDriveFolder, ::installTranscriptionModel) }
     }
     private fun requestRecording() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording()
@@ -50,16 +51,21 @@ class MainActivity : ComponentActivity() {
     }
     private fun startRecording() = ContextCompat.startForegroundService(this, Intent(this, RecordingService::class.java).setAction(RecordingService.ACTION_START))
     private fun chooseDriveFolder() = driveFolderPicker.launch(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION))
+    private fun installTranscriptionModel() = WhisperModelManager.enqueueInstall(this)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun EchoApp(onRecord: () -> Unit, onConnectDrive: () -> Unit) {
+@Composable private fun EchoApp(onRecord: () -> Unit, onConnectDrive: () -> Unit, onInstallModel: () -> Unit) {
     val context = LocalContext.current
     val repo = remember(context) { NoteRepository.get(context) }
+    val modelInstalled = remember(context) { WhisperModelManager(context).installedModel() != null }
     val notes by repo.notes.observeAll().collectAsStateWithLifecycle(emptyList())
     MaterialTheme {
         Scaffold(topBar = { TopAppBar(title = { Text("Echo") }, actions = { TextButton(onClick = onConnectDrive) { Text("Drive") } }) }, floatingActionButton = { FloatingActionButton(onClick = onRecord) { Text("Record") } }) { padding ->
-            if (notes.isEmpty()) Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) { Text("Record a voice note to begin") }
+            if (notes.isEmpty()) Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) { Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                Text(if (modelInstalled) "Record a voice note to begin" else "Install the transcription model before recording")
+                if (!modelInstalled) Button(onClick = onInstallModel, modifier = Modifier.padding(top = 12.dp)) { Text("Download model (Wi-Fi, 57 MB)") }
+            } }
             else LazyColumn(Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(notes, key = { it.id }) { note -> Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp)) {
                     Text(DateFormat.getDateTimeInstance().format(Date(note.createdAt)), style = MaterialTheme.typography.titleMedium)

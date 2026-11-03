@@ -8,7 +8,9 @@ Audio is recorded to app-private storage, indexed in Room, transcribed by a fore
 
 ## whisper.cpp integration
 
-The app deliberately has no cloud-transcription fallback. `WhisperEngine` is the native integration boundary; before shipping, vendor a pinned `whisper.cpp` release in `app/src/main/cpp/whisper.cpp`, add its JNI binding from the official Android example, and install a selected model pack. Models must be downloaded after install (Wi-Fi by default) and checksum verified; do not package them in the APK.
+The app deliberately has no cloud-transcription fallback. It pins `whisper.cpp` v1.9.5 as a Git submodule in `app/src/main/cpp/whisper.cpp`, builds it through the Android NDK, and calls it through the `echo_whisper` JNI library. Android decodes the recorded AAC audio into the 16 kHz float PCM that whisper.cpp consumes.
+
+The selected model is downloaded after install over Wi-Fi, never packaged in the APK. Echo verifies both its expected size and SHA-256 before atomically installing it. Clone the repository with `--recurse-submodules` before building locally.
 
 ## Google Drive v1
 
@@ -16,4 +18,4 @@ Tap **Drive**, select a folder supplied by the Google Drive app, and grant write
 
 ## Model decision
 
-V1 uses the multilingual `ggml-base-q5_1.bin` whisper.cpp model (~57 MB). It must be installed as a post-install model pack and verified before use.
+V1 uses the multilingual `ggml-base-q5_1.bin` whisper.cpp model (~57 MB). Its pinned SHA-256 is `422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898`.

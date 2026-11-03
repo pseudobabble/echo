@@ -1,7 +1,7 @@
 .gradle/
+.magellan/
 build/
 **/build/
 .idea/
 *.iml
 local.properties
-
