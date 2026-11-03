@@ -7,7 +7,12 @@ import androidx.core.content.ContextCompat
 
 class RecordActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val action = if (intent.action == RecordingService.ACTION_STOP) RecordingService.ACTION_STOP else RecordingService.ACTION_START
+        val action = when (intent.action) {
+            RecordingService.ACTION_STOP -> RecordingService.ACTION_STOP
+            RecordingService.ACTION_PAUSE -> RecordingService.ACTION_PAUSE
+            RecordingService.ACTION_RESUME -> RecordingService.ACTION_RESUME
+            else -> RecordingService.ACTION_START
+        }
         ContextCompat.startForegroundService(context, Intent(context, RecordingService::class.java).setAction(action))
     }
 }

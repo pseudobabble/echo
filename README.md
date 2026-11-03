@@ -4,7 +4,7 @@ Offline-first Android voice notes with local audio retention and queued on-devic
 
 ## v1 architecture
 
-Audio is recorded to app-private storage, indexed in Room, transcribed by a foreground `WorkManager` job, and copied into a user-selected Google Drive folder by independently retryable jobs. The recording notification supplies the lock-screen entry point.
+Audio is recorded to app-private storage, indexed in Room, transcribed by a foreground `WorkManager` job, and copied into a user-selected Google Drive folder by independently retryable jobs. The recording notification supplies the lock-screen entry point, including Pause/Resume and Stop controls. The Material UI has an Inbox, a task-capture inbox, and a note-detail player with seek control and transcript.
 
 ## whisper.cpp integration
 
@@ -14,7 +14,11 @@ The selected model is downloaded after install over Wi-Fi, never packaged in the
 
 ## Google Drive v1
 
-Tap **Drive**, select a folder supplied by the Google Drive app, and grant write access. Android persists this folder grant; the worker writes the `.m4a` audio and matching `.txt` transcript after local transcription. This uses the phone's existing Google Drive account and needs no embedded credentials, OAuth client, or Google Cloud configuration. S3 is deliberately deferred.
+Tap **Settings → Connect Drive folder**, select a folder supplied by the Google Drive app, and grant write access. Android persists this folder grant; audio is queued for upload when recording stops and its matching `.txt` transcript is refreshed after local transcription. This uses the phone's existing Google Drive account and needs no embedded credentials, OAuth client, or Google Cloud configuration. S3 is deliberately deferred.
+
+## Task capture
+
+Choose **Task** before recording to place the recording in Echo's Tasks inbox. The Google Tasks destination is intentionally not claimed as connected yet: creating tasks in a Google account requires a user-owned OAuth client configuration, which is not bundled with the app.
 
 ## Model decision
 
