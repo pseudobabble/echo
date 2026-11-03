@@ -25,6 +25,21 @@ android {
     composeOptions { kotlinCompilerExtensionVersion = "1.5.8" }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
+
+    val releaseKeystorePath = System.getenv("ECHO_KEYSTORE_PATH")
+    if (releaseKeystorePath != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storePassword = requireNotNull(System.getenv("ECHO_KEYSTORE_PASSWORD"))
+                keyAlias = requireNotNull(System.getenv("ECHO_KEY_ALIAS"))
+                keyPassword = requireNotNull(System.getenv("ECHO_KEY_PASSWORD"))
+            }
+        }
+        buildTypes.named("release") {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
 }
 
 dependencies {
