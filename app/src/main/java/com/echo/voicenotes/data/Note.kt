@@ -16,6 +16,7 @@ data class Note(
     // Retained solely for database compatibility while S3 work is paused.
     val s3State: SyncState = SyncState.NOT_CONFIGURED,
     val driveState: SyncState = SyncState.NOT_CONFIGURED,
+    val driveError: String? = null,
 )
 
 enum class NoteKind { NOTE, TASK }

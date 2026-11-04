@@ -7,7 +7,7 @@ import java.util.UUID
 
 class NoteRepository private constructor(private val context: Context) {
     private val db = Room.databaseBuilder(context.applicationContext, EchoDatabase::class.java, "echo.db")
-        .addMigrations(EchoDatabase.MIGRATION_1_2)
+        .addMigrations(EchoDatabase.MIGRATION_1_2, EchoDatabase.MIGRATION_2_3)
         .build()
     val notes = db.notes()
     fun newAudioFile(id: String = UUID.randomUUID().toString()): Pair<String, File> {

@@ -24,7 +24,10 @@ class GoogleDriveSyncWorker(context: Context, params: WorkerParameters) : Corout
             val transcript = findOrCreate(folder, "${note.id}.txt", "text/plain")
             resolver.openOutputStream(transcript, "wt")!!.bufferedWriter().use { it.write(note.transcript.orEmpty()) }
             repo.notes.driveState(noteId, SyncState.SYNCED); Result.success()
-        } catch (_: Exception) { repo.notes.driveState(noteId, SyncState.FAILED); Result.retry() }
+        } catch (e: Exception) {
+            repo.notes.driveState(noteId, SyncState.FAILED, e.message ?: e.javaClass.simpleName)
+            Result.retry()
+        }
     }
     private fun findOrCreate(tree: android.net.Uri, name: String, mime: String): android.net.Uri {
         val resolver = applicationContext.contentResolver
@@ -34,7 +37,8 @@ class GoogleDriveSyncWorker(context: Context, params: WorkerParameters) : Corout
             val nameIndex = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
             while (cursor.moveToNext()) if (cursor.getString(nameIndex) == name) return DocumentsContract.buildDocumentUriUsingTree(tree, cursor.getString(idIndex))
         }
-        return requireNotNull(DocumentsContract.createDocument(resolver, tree, mime, name)) { "Drive folder refused new document" }
+        val folder = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+        return requireNotNull(DocumentsContract.createDocument(resolver, folder, mime, name)) { "Drive folder refused new document" }
     }
     companion object { const val NOTE_ID = "note_id" }
 }

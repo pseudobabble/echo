@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
@@ -61,9 +62,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.echo.voicenotes.data.Note
 import com.echo.voicenotes.data.NoteKind
@@ -83,6 +87,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     private var requestedKind = NoteKind.NOTE
@@ -348,6 +353,8 @@ private fun NoteList(notes: List<Note>, modelInstalled: Boolean, driveConnected:
 @OptIn(ExperimentalMaterial3Api::class)
 private fun NoteDetailScreen(note: Note, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
     var player by remember(note.id) { mutableStateOf<MediaPlayer?>(null) }
     var isPlaying by remember(note.id) { mutableStateOf(false) }
     var positionMs by remember(note.id) { mutableLongStateOf(0L) }
@@ -379,14 +386,39 @@ private fun NoteDetailScreen(note: Note, onBack: () -> Unit) {
                     }
                     Slider(value = positionMs.coerceIn(0, durationMs).toFloat(), onValueChange = { target -> player?.seekTo(target.toInt()); positionMs = target.toLong() }, valueRange = 0f..durationMs.coerceAtLeast(1).toFloat())
                     Text(driveStatus(note.driveState), style = MaterialTheme.typography.labelLarge)
+                    if (note.driveState == SyncState.FAILED && note.driveError != null) Text(note.driveError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                 } }
                 Spacer(Modifier.height(20.dp))
                 Text("Transcript", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
-                Text(noteStatus(note))
+                SelectionContainer { Text(noteStatus(note)) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
+                    TextButton(onClick = { clipboard.setText(AnnotatedString(note.transcript.orEmpty())) }, enabled = !note.transcript.isNullOrBlank()) { Text("Copy transcript") }
+                    TextButton(onClick = { shareTranscript(context, note) }, enabled = !note.transcript.isNullOrBlank()) { Text("Share text") }
+                    TextButton(onClick = { shareAudio(context, note) }, enabled = File(note.audioPath).isFile) { Text("Share audio") }
+                }
             }
         }
     }
+}
+
+private fun shareTranscript(context: android.content.Context, note: Note) {
+    val share = Intent(Intent.ACTION_SEND)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_TITLE, noteTitle(note))
+        .putExtra(Intent.EXTRA_TEXT, note.transcript.orEmpty())
+    context.startActivity(Intent.createChooser(share, "Share transcript"))
+}
+
+private fun shareAudio(context: android.content.Context, note: Note) {
+    val audio = File(note.audioPath)
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", audio)
+    val share = Intent(Intent.ACTION_SEND)
+        .setType("audio/mp4")
+        .putExtra(Intent.EXTRA_TITLE, noteTitle(note))
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    context.startActivity(Intent.createChooser(share, "Share recording"))
 }
 
 private fun noteTitle(note: Note): String = note.transcript.orEmpty().lineSequence().firstOrNull()?.trim()?.takeIf { it.isNotBlank() } ?: if (note.kind == NoteKind.TASK) "Untitled task" else "Untitled voice note"
