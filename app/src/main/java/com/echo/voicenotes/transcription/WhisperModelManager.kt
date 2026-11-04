@@ -10,6 +10,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.echo.voicenotes.data.NoteRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
@@ -29,8 +32,15 @@ class WhisperModelManager(context: Context) {
         const val SHA256 = "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898"
         const val URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin"
         private const val UNIQUE_WORK = "install-whisper-model"
+        private val mutableInstalled = MutableStateFlow(false)
+        val installed: StateFlow<Boolean> = mutableInstalled.asStateFlow()
+
+        fun refreshInstalled(context: Context) {
+            mutableInstalled.value = WhisperModelManager(context).installedModel() != null
+        }
 
         fun enqueueInstall(context: Context) {
+            mutableInstalled.value = false
             val request = OneTimeWorkRequestBuilder<WhisperModelDownloadWorker>()
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
                 .build()
@@ -68,6 +78,7 @@ class WhisperModelDownloadWorker(context: Context, params: WorkerParameters) : C
             require(WhisperModelManager.sha256(partial) == WhisperModelManager.SHA256) { "Downloaded model checksum did not match" }
             if (destination.exists()) destination.delete()
             if (!partial.renameTo(destination)) throw IllegalStateException("Unable to install downloaded model")
+            WhisperModelManager.refreshInstalled(applicationContext)
             NoteRepository.get(applicationContext).notes.queuedIds().forEach { id ->
                 androidx.work.WorkManager.getInstance(applicationContext).enqueue(
                     androidx.work.OneTimeWorkRequestBuilder<TranscriptionWorker>()

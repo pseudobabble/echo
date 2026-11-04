@@ -17,4 +17,5 @@ interface NoteDao {
     @Query("UPDATE notes SET driveState = :state WHERE id = :id") suspend fun driveState(id: String, state: SyncState)
     @Query("SELECT id FROM notes WHERE transcriptionState = 'COMPLETE'") suspend fun completedIds(): List<String>
     @Query("SELECT id FROM notes WHERE transcriptionState = 'QUEUED'") suspend fun queuedIds(): List<String>
+    @Query("SELECT id FROM notes") suspend fun allIds(): List<String>
 }

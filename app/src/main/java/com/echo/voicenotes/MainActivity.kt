@@ -80,6 +80,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.DateFormat
 import java.util.Date
 
@@ -92,7 +93,7 @@ class MainActivity : ComponentActivity() {
         val flags = result.data!!.flags and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         contentResolver.takePersistableUriPermission(uri, flags)
         DriveFolder.set(this, uri)
-        CoroutineScope(Dispatchers.IO).launch { NoteRepository.get(this@MainActivity).notes.completedIds().forEach { DriveSyncScheduler.enqueue(this@MainActivity, it) } }
+        CoroutineScope(Dispatchers.IO).launch { NoteRepository.get(this@MainActivity).notes.allIds().forEach { DriveSyncScheduler.enqueue(this@MainActivity, it) } }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -138,13 +139,19 @@ private fun EchoApp(
 ) {
     val context = LocalContext.current
     val repo = remember(context) { NoteRepository.get(context) }
-    val modelInstalled = remember(context) { WhisperModelManager(context).installedModel() != null }
+    val modelInstalled by WhisperModelManager.installed.collectAsStateWithLifecycle()
+    val driveFolder by DriveFolder.folder.collectAsStateWithLifecycle()
     val notes by repo.notes.observeAll().collectAsStateWithLifecycle(emptyList())
     val activeRecording by RecordingStatus.active.collectAsStateWithLifecycle()
     var destination by remember { mutableStateOf(Destination.INBOX) }
     var captureKind by remember { mutableStateOf(NoteKind.NOTE) }
     var selectedNote by remember { mutableStateOf<Note?>(null) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(context) {
+        DriveFolder.load(context)
+        withContext(Dispatchers.IO) { WhisperModelManager.refreshInstalled(context) }
+    }
 
     LaunchedEffect(activeRecording?.noteId, activeRecording?.isPaused) {
         while (activeRecording != null && activeRecording?.isPaused == false) {
@@ -178,9 +185,9 @@ private fun EchoApp(
                     )
                 }
                 when (destination) {
-                    Destination.INBOX -> InboxScreen(notes.filter { it.kind == NoteKind.NOTE }, captureKind, { captureKind = it }, onRecord, modelInstalled, onInstallModel, { selectedNote = it })
-                    Destination.TASKS -> TasksScreen(notes.filter { it.kind == NoteKind.TASK }, captureKind, { captureKind = it }, onRecord, { selectedNote = it })
-                    Destination.SETTINGS -> SettingsScreen(modelInstalled, onInstallModel, DriveFolder.get(context) != null, onConnectDrive)
+                    Destination.INBOX -> InboxScreen(notes.filter { it.kind == NoteKind.NOTE }, captureKind, { captureKind = it }, onRecord, modelInstalled, driveFolder != null, onInstallModel, { selectedNote = it })
+                    Destination.TASKS -> TasksScreen(notes.filter { it.kind == NoteKind.TASK }, captureKind, { captureKind = it }, onRecord, modelInstalled, driveFolder != null, { selectedNote = it })
+                    Destination.SETTINGS -> SettingsScreen(modelInstalled, onInstallModel, driveFolder != null, onConnectDrive)
                 }
             }
         }
@@ -203,18 +210,19 @@ private fun InboxScreen(
     onKindSelected: (NoteKind) -> Unit,
     onRecord: (NoteKind) -> Unit,
     modelInstalled: Boolean,
+    driveConnected: Boolean,
     onInstallModel: () -> Unit,
     onOpenNote: (Note) -> Unit,
 ) {
     if (notes.isEmpty()) {
         CaptureLanding(captureKind, onKindSelected, onRecord, modelInstalled, onInstallModel)
     } else {
-        NoteList(notes, onOpenNote)
+        NoteList(notes, modelInstalled, driveConnected, onOpenNote)
     }
 }
 
 @Composable
-private fun TasksScreen(notes: List<Note>, captureKind: NoteKind, onKindSelected: (NoteKind) -> Unit, onRecord: (NoteKind) -> Unit, onOpenNote: (Note) -> Unit) {
+private fun TasksScreen(notes: List<Note>, captureKind: NoteKind, onKindSelected: (NoteKind) -> Unit, onRecord: (NoteKind) -> Unit, modelInstalled: Boolean, driveConnected: Boolean, onOpenNote: (Note) -> Unit) {
     if (notes.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -228,7 +236,7 @@ private fun TasksScreen(notes: List<Note>, captureKind: NoteKind, onKindSelected
             }
         }
     } else {
-        NoteList(notes, onOpenNote)
+        NoteList(notes, modelInstalled, driveConnected, onOpenNote)
     }
 }
 
@@ -310,7 +318,7 @@ private fun SettingsScreen(modelInstalled: Boolean, onInstallModel: () -> Unit, 
 }
 
 @Composable
-private fun NoteList(notes: List<Note>, onOpenNote: (Note) -> Unit) {
+private fun NoteList(notes: List<Note>, modelInstalled: Boolean, driveConnected: Boolean, onOpenNote: (Note) -> Unit) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(notes, key = { it.id }) { note ->
             Card(Modifier.fillMaxWidth()) {
@@ -321,12 +329,12 @@ private fun NoteList(notes: List<Note>, onOpenNote: (Note) -> Unit) {
                     }
                     Text(DateFormat.getDateTimeInstance().format(Date(note.createdAt)), style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.height(8.dp))
-                    Text(noteStatus(note), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(noteStatus(note, modelInstalled), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(if (note.driveState == SyncState.SYNCED) Icons.Default.CloudDone else Icons.Default.CloudUpload, null)
                         Spacer(Modifier.width(8.dp))
-                        Text("${formatDuration(note.durationMs)} · ${driveStatus(note.driveState)}", style = MaterialTheme.typography.labelLarge)
+                        Text("${formatDuration(note.durationMs)} · ${driveStatus(note.driveState, driveConnected)}", style = MaterialTheme.typography.labelLarge)
                         Spacer(Modifier.weight(1f))
                         TextButton(onClick = { onOpenNote(note) }) { Text("Open") }
                     }
@@ -382,13 +390,14 @@ private fun NoteDetailScreen(note: Note, onBack: () -> Unit) {
 }
 
 private fun noteTitle(note: Note): String = note.transcript.orEmpty().lineSequence().firstOrNull()?.trim()?.takeIf { it.isNotBlank() } ?: if (note.kind == NoteKind.TASK) "Untitled task" else "Untitled voice note"
-private fun noteStatus(note: Note): String = when (note.transcriptionState) {
+private fun noteStatus(note: Note, modelInstalled: Boolean = true): String = when (note.transcriptionState) {
     TranscriptionState.COMPLETE -> note.transcript.orEmpty().ifBlank { "No speech detected" }
     TranscriptionState.FAILED -> "Transcription needs attention: ${note.transcriptionError}"
+    TranscriptionState.QUEUED -> if (modelInstalled) "Queued for transcription…" else "Waiting for transcription model"
     else -> "${note.transcriptionState.name.lowercase().replaceFirstChar { it.uppercase() }}…"
 }
-private fun driveStatus(state: SyncState): String = when (state) {
-    SyncState.NOT_CONFIGURED -> "Stored on this device"
+private fun driveStatus(state: SyncState, driveConnected: Boolean = false): String = when (state) {
+    SyncState.NOT_CONFIGURED -> if (driveConnected) "Ready to upload to Drive" else "Stored on this device"
     SyncState.PENDING -> "Uploading to Drive…"
     SyncState.SYNCED -> "Saved to Drive"
     SyncState.FAILED -> "Drive upload will retry"
